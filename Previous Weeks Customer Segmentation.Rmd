@@ -1,30 +1,284 @@
 ---
-title: "Previous Weeks Customer Segmentation"
+title: "Week 12 Revised"
 author: "Ted"
-date: "1/29/2022"
 output: html_document
 ---
+# Week 13 Ip Project
+### This is the revised version of the previous week, now using unsupervised algorithms
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+## BackGround:
+
+A Kenyan entrepreneur has created an online cryptography course and would want to advertise it on her blog. She currently targets audiences originating from various countries. In the past, she ran ads to advertise a related course on the same blog and collected data in the process. She would now like to employ your services as a Data Science Consultant to help her identify which individuals are most likely to click on her ads.
+
+## The metric for success
+The ability to use R unsupervised algorithms to identify which individual are likely to click on her ads
+
+## The experimental design
+The data will be read, checked for outlines, repeated rows, and deal with any missing values
+
+## Approprietness of Data
+The data in the file comes from the collection process from the site itself
+
+
+#Imports
+```{r}
+
+library(readr)
+advertising <- read_csv("advertising.csv")
+head(advertising)
+
 ```
 
-## R Markdown
+## Finding its shape
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r}
+print(ncol(advertising))
+#number of columns
+print(nrow(advertising))
+#number of rows
 ```
 
-## Including Plots
+## Finding missing values
 
-You can also embed plots, for example:
+```{r}
+colSums(is.na(advertising))
+```
+No missing values
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+
+## Finding duplicate data
+
+```{r}
+duplicated_rows <- advertising[duplicated(advertising),]
+duplicated_rows
+#No duplicated rows were found
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Finding outliers
+
+```{r}
+boxplot(advertising$Age)
+#None in  the age
+str(advertising)
+boxplot(advertising$`Daily Time Spent on Site`)
+#non here too
+
+boxplot(advertising$`Area Income`)
+#some in the begining 
+
+boxplot(advertising$`Daily Internet Usage`)
+#none here too
+
+```
+# Starting Analysis
+
+## Univariate Analysis
+
+```{r}
+#Finding the mean time spent on site
+time.mean <- mean(advertising$`Daily Time Spent on Site`)
+time.mean
+```
+
+```{r}
+#Lets check if everyone or most visitors com from kenya
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+country.mode <- getmode(advertising$Country)
+country.mode
+```
+This is interesting most visitors come from Czech Republic
+
+```{r}
+#If men are the most visitors
+Male.mode <- getmode(advertising$Male)
+Male.mode
+```
+Women are the most visitors
+
+
+### Lets visualize more of this data
+
+```{r}
+age <- advertising$Age
+ages <- table(age)
+barplot(ages, xlab = "Ages")
+#The age distribution
+```
+
+```{r}
+income <- advertising$`Clicked on Ad`
+incomes <- table(income)
+barplot(incomes, xlab = "Who clicked?")
+#Ages of each click
+```
+
+### Histograms
+
+```{r}
+hist(advertising$`Area Income`, xlab = "Area Income")
+#An even spread on time spent on site
+```
+
+```{r}
+hist(advertising$`Daily Internet Usage`, xlab = "Internet usage")
+#Quite spread of the internet usage
+```
+
+```{r}
+hist(advertising$`Daily Time Spent on Site`, xlab = 'Daily Time Spent on Site')
+
+#The distribution of time spent on site is spread out with the most occurring at 75 - 85
+```
+```{r}
+hist(advertising$Age)
+#Ages are mostly concentrated between 25 - 40
+```
+## Bivariate Analysis
+
+Lets find the covariance between a variety of the features 
+```{r}
+daily <- advertising$`Daily Time Spent on Site`
+age <- advertising$Age
+income <- advertising$`Area Income`
+sex <-advertising$Male
+use <- advertising$`Daily Internet Usage`
+
+click <- advertising$`Clicked on Ad`
+
+cov(daily,click)
+#That has a negative correlation
+
+```
+```{r}
+cov(age,click)
+#Positive correlation
+```
+```{r}
+cov(income,click)
+#very negative
+```
+```{r}
+cov(sex,click)
+#Negative correlation
+```
+```{r}
+cov(use,click)
+#negative correlation
+```
+## Lets find the correlation 
+
+
+The correlation coefficient of two variables in a data set equals to their covariance divided by the product of their individual standard deviations. It is a normalized measurement of how the two are linearly related. If the correlation coefficient is close to 1, it would indicate that the variables are positively linearly related. For -1, it indicates that the variables are negatively linearly related and the scatter plot almost falls along a straight line with negative slope. And for zero, it would indicate a weak linear relationship between the variables.
+
+### only the ones with postive correlations
+```{r}
+cor(age,click)
+#a medium postive correlation 
+```
+## checking correlation matrix
+```{r}
+num_ads <- unlist(lapply(advertising, is.numeric))
+num_ad <- advertising[ , num_ads]
+
+cor(num_ad)
+```
+
+## Ploting age against clicks
+
+The above graph is not very clear however its clear that older vistors tend to click the ads
+
+# Conclusion 
+
+## We can conclude that the types of customers that would click the ad are from Czech republic, female and most likely an older person
+
+# Modifications Begin Here : Applying Unsupervised Learning
+
+## Starting with K-Means clustering
+```{r}
+#State of df
+head(advertising)
+ads<- advertising[, c(1, 2, 3, 4,5,6,7,8,9)]
+ads.class<- advertising[, "Clicked on Ad"]
+head(ads)
+```
+### Lets attempt label encoding to convert all the variable to numeric
+
+```{r}
+library(superml)
+label <- LabelEncoder$new()
+
+ads$City <- label$fit_transform(ads$City)
+ads$Country <-label$fit_transform(ads$Country)
+head(ads)
+```
+
+```{r}
+#Dropping the coulmns we can use for analysis
+library(tidyverse)
+adz <- as_tibble(ads)
+ads_clean <- ads %>% select('Daily Time Spent on Site', 'Age','Area Income',
+'Daily Internet Usage','City','Male','Country')
+ads_clean
+```
+
+
+```{r}
+#Lets Normalize the data set without labels 
+normalize <- function(x){
+  return ((x-min(x)) / (max(x)-min(x)))
+}
+
+ads_clean <- normalize(ads_clean)
+ads_clean
+```
+```{r}
+# Applying the K-means clustering algorithm with no. of centroids(k)=4
+
+result<- kmeans(ads_clean,4)
+result$size
+```
+```{r}
+result$centers
+```
+
+```{r}
+result$cluster
+```
+```{r}
+par(mfrow = c(2,2), mar = c(5,4,2,2))
+plot(ads_clean[c(2,5,7)], col = result$cluster)
+```
+
+## Moving to Hierarical Clustering
+```{r}
+#Scaling the data
+df <- scale(ads_clean)
+head(df)
+```
+
+```{r}
+d <- dist(df, method = "euclidean")
+res.hc <- hclust(d, method = "ward.D2" )
+
+
+# Lastly, we plot the obtained dendrogram
+# ---
+# 
+plot(res.hc, cex = 0.6, hang = -1)
+
+```
+
+```{r}
+d <- dist(df, method = "euclidean")
+res.hc <- hclust(d, method = "average" )
+
+
+# Lastly, we plot the obtained dendrogram
+# ---
+# 
+plot(res.hc, cex = 0.6, hang = -1)
+```
